@@ -6,9 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
-import org.apache.commons.math3.stat.descriptive.moment.Mean;
 import org.apache.commons.math3.stat.descriptive.moment.Skewness;
-import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
 import org.bouncycastle.crypto.BlockCipher;
 import org.bouncycastle.crypto.BufferedBlockCipher;
 import org.bouncycastle.crypto.CryptoException;
@@ -61,7 +59,12 @@ public class MainClass {
                     } else {
                         hammingDistance = experimentChangingKey();
                     }
-                    histogram[hammingDistance - 1]++;
+
+                    if (hammingDistance != 0) {
+                        histogram[hammingDistance - 1]++;
+                    } else {
+                        System.out.println("Algo falla con hamming");
+                    }
                 }
 
                 double mean = mean(histogram);
@@ -194,35 +197,22 @@ public class MainClass {
     }
 
     private static double mean(int[] histogram) {
-//        double mean = 0.0;
-//
-//        for (int i = 0; i < histogram.length; i++) {
-//            mean += histogram[i];
-//        }
-//        return mean / sampleNumber;
-        double[] histogramAux = new double[histogram.length];
-        for (int i = 0; i < histogram.length; i++) {
-            histogramAux[i] = histogram[i];
-        }
+        double mean = 0.0;
 
-        return new Mean().evaluate(histogramAux, 0, histogramAux.length);
+        for (int i = 0; i < histogram.length; i++) {
+            mean += histogram[i];
+        }
+        return mean / sampleNumber;
     }
 
     private static double standardDeviation(int[] histogram, double mean) {
-//        double numerator = 0.0;
-//
-//        for (int i = 0; i < histogram.length; i++) {
-//            numerator += Math.pow(histogram[i] - mean, 2);
-//        }
-//
-//        return Math.sqrt(numerator / sampleNumber);
+        double numerator = 0.0;
 
-        double[] histogramAux = new double[histogram.length];
         for (int i = 0; i < histogram.length; i++) {
-            histogramAux[i] = histogram[i];
+            numerator += Math.pow(histogram[i] - mean, 2);
         }
 
-        return new StandardDeviation().evaluate(histogramAux, mean, 0, histogramAux.length);
+        return Math.sqrt(numerator / sampleNumber);
     }
 
     public static double median(int[] histogram) {
@@ -314,10 +304,14 @@ public class MainClass {
         engine = new CAST6Engine();
         cipher = new PaddedBufferedBlockCipher(engine);
 
-        startExperiment(128);
-
-        startExperiment(256);
-
+        //startExperiment(128);
+        //startExperiment(256);
+        for (int i = 0; i < 1000; i++) {
+            int hamming = experimentChangingMessage();
+            if (hamming == 0) {
+                System.out.println("Algo falla con hamming, iteracion: " + i);
+            }
+        }
         //experimentChangingMessage();
         //experimentChangingKey();
         // TESTS
@@ -325,6 +319,7 @@ public class MainClass {
         //testGenerateRandomSequence();
         //testGenerateSimilarSequence();
         //testHamming();
+        //testMean();
     }
 
     private static void printBits(byte[] sequence) {
@@ -393,5 +388,10 @@ public class MainClass {
         byte[] newSequence = generateRandomBitSequence(8);
         printBits(newSequence);
         System.out.println(hammingDistance(sequence, newSequence));
+    }
+
+    private static void testMean() {
+        int[] test = {3, 1, 7, 1, 6, 81, 6, 23, 62};
+        System.out.println(mean(test));
     }
 }
