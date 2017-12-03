@@ -2,7 +2,13 @@
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import org.apache.commons.math3.stat.descriptive.moment.Kurtosis;
+import org.apache.commons.math3.stat.descriptive.moment.Mean;
+import org.apache.commons.math3.stat.descriptive.moment.Skewness;
+import org.apache.commons.math3.stat.descriptive.moment.StandardDeviation;
 import org.bouncycastle.crypto.BlockCipher;
 import org.bouncycastle.crypto.BufferedBlockCipher;
 import org.bouncycastle.crypto.CryptoException;
@@ -23,12 +29,57 @@ public class MainClass {
 
     private static BlockCipher engine;
     private static BufferedBlockCipher cipher;
-    private final static int NUMBER_OF_EXPERIMENTS = 100;
+    private static int sampleNumber = 10;
+    private static int experimentsNumber = 3;
 
-    private static int[] messsagesHistogram;
-    private static int[] keysHistogram;
+    private final static double PRECISION = 0.90;
 
-    private static void experimentChangingMessage() {
+    private static void startExperiment(int length) {
+        int[] histogram;
+        List<Double> calculatedMeans = null;
+        List<Double> calculatedStandardDeviation = null;
+
+        double experimentAccuracy = 1.0;
+
+        do {
+            if (experimentAccuracy < PRECISION) {
+                sampleNumber *= 2;
+            }
+
+            // Length of maximum changes of hamming distance
+            calculatedMeans = new ArrayList<>();
+            calculatedStandardDeviation = new ArrayList<>();
+
+            for (int i = 0; i < experimentsNumber; i++) {
+                histogram = new int[length];
+
+                int hammingDistance;
+                for (int j = sampleNumber; j > 0; j--) {
+
+                    if (length == 128) {
+                        hammingDistance = experimentChangingMessage();
+                    } else {
+                        hammingDistance = experimentChangingKey();
+                    }
+                    histogram[hammingDistance - 1]++;
+                }
+
+                double mean = mean(histogram);
+                calculatedMeans.add(mean);
+                calculatedStandardDeviation.add(standardDeviation(histogram, mean));
+            }
+
+            double totalMean = experimentValuesMean(calculatedMeans);
+            double totalStandardDeviation = experimentValuesMean(calculatedStandardDeviation);
+
+            experimentAccuracy = calculateExperimentAccuracy(totalMean, totalStandardDeviation, calculatedMeans, calculatedStandardDeviation);
+        } while (experimentAccuracy < PRECISION);
+
+        //Pintar histograma con desviaciones estandar y medias calculadas
+        System.out.println("Se ha alcanzado la precision esperada");
+    }
+
+    private static int experimentChangingMessage() {
         // 256 bits key long -> 32 byte long
         byte[] key = generateRandomBitSequence(256);
         // 128 bits message long -> 16 byte long
@@ -40,11 +91,10 @@ public class MainClass {
 
         byte[] newCipherText = cipherMessage(key, similarMessage);
 
-        int hammingDistance = hammingDistance(cipherText, newCipherText);
-        messsagesHistogram[hammingDistance]++;
+        return hammingDistance(cipherText, newCipherText);
     }
 
-    private static void experimentChangingKey() {
+    private static int experimentChangingKey() {
         // 256 bits key long -> 32 byte long
         byte[] key = generateRandomBitSequence(256);
         // 128 bits message long -> 16 byte long
@@ -56,8 +106,7 @@ public class MainClass {
 
         byte[] newCipherText = cipherMessage(similarKey, message);
 
-        int hammingDistance = hammingDistance(cipherText, newCipherText);
-        keysHistogram[hammingDistance]++;
+        return hammingDistance(cipherText, newCipherText);
     }
 
     private static byte[] cipherMessage(byte[] key, byte[] message) {
@@ -143,24 +192,131 @@ public class MainClass {
         }
         return hammingDistance;
     }
-    
-    private static int mean() {
-        return 0;
+
+    private static double mean(int[] histogram) {
+//        double mean = 0.0;
+//
+//        for (int i = 0; i < histogram.length; i++) {
+//            mean += histogram[i];
+//        }
+//        return mean / sampleNumber;
+        double[] histogramAux = new double[histogram.length];
+        for (int i = 0; i < histogram.length; i++) {
+            histogramAux[i] = histogram[i];
+        }
+
+        return new Mean().evaluate(histogramAux, 0, histogramAux.length);
+    }
+
+    private static double standardDeviation(int[] histogram, double mean) {
+//        double numerator = 0.0;
+//
+//        for (int i = 0; i < histogram.length; i++) {
+//            numerator += Math.pow(histogram[i] - mean, 2);
+//        }
+//
+//        return Math.sqrt(numerator / sampleNumber);
+
+        double[] histogramAux = new double[histogram.length];
+        for (int i = 0; i < histogram.length; i++) {
+            histogramAux[i] = histogram[i];
+        }
+
+        return new StandardDeviation().evaluate(histogramAux, mean, 0, histogramAux.length);
+    }
+
+    public static double median(int[] histogram) {
+        int[] sortedHistogram = new int[histogram.length];
+        System.arraycopy(histogram, 0, sortedHistogram, 0, histogram.length);
+
+        int middle = sortedHistogram.length / 2;
+        if (sortedHistogram.length % 2 == 1) {
+            return sortedHistogram[middle];
+        } else {
+            return (sortedHistogram[middle - 1] + sortedHistogram[middle]) / 2.0;
+        }
+    }
+
+    public static List<Integer> mode(int[] histogram) {
+        List<Integer> modes = new ArrayList<>();
+        Map<Integer, Integer> countMap = new HashMap<>();
+
+        int max = -1;
+        for (int number : histogram) {
+            int count = 0;
+
+            if (countMap.containsKey(number)) {
+                count = countMap.get(number) + 1;
+            } else {
+                count = 1;
+            }
+
+            countMap.put(number, count);
+
+            if (count > max) {
+                max = count;
+            }
+        }
+
+        for (Map.Entry<Integer, Integer> tuple : countMap.entrySet()) {
+            if (tuple.getValue() == max) {
+                modes.add(tuple.getKey());
+            }
+        }
+
+        return modes;
+    }
+
+    public static double kurtosis(int[] histogram) {
+        double[] histogramAux = new double[histogram.length];
+        for (int i = 0; i < histogram.length; i++) {
+            histogramAux[i] = histogram[i];
+        }
+
+        return new Kurtosis().evaluate(histogramAux, 0, histogramAux.length);
+    }
+
+    public static double skewness(int[] histogram) {
+        double[] histogramAux = new double[histogram.length];
+        for (int i = 0; i < histogram.length; i++) {
+            histogramAux[i] = histogram[i];
+        }
+        return new Skewness().evaluate(histogramAux, 0, histogramAux.length);
+    }
+
+    private static double experimentValuesMean(List<Double> values) {
+        double total = 0.0;
+
+        for (double value : values) {
+            total += value;
+        }
+        return total / values.size();
+    }
+
+    private static double calculateExperimentAccuracy(double totalMean, double totalStandardDeviation, List<Double> calculatedMeans, List<Double> calculatedStandardDeviation) {
+        double r = 0.0;
+        double d = 0.0;
+
+        for (double mean : calculatedMeans) {
+            r += (mean - totalMean);
+        }
+        r /= totalMean;
+
+        for (double standardDeviation : calculatedStandardDeviation) {
+            d += (standardDeviation - totalStandardDeviation);
+        }
+        d /= totalStandardDeviation;
+
+        return Math.max(r, d);
     }
 
     public static void main(String[] args) {
         engine = new CAST6Engine();
         cipher = new PaddedBufferedBlockCipher(engine);
-        messsagesHistogram = new int[128];
-        keysHistogram = new int[256];
 
-        for (int i = NUMBER_OF_EXPERIMENTS; i > 0; i--) {
-            experimentChangingMessage();
-        }
+        startExperiment(128);
 
-        for (int i = NUMBER_OF_EXPERIMENTS; i > 0; i--) {
-            experimentChangingKey();
-        }
+        startExperiment(256);
 
         //experimentChangingMessage();
         //experimentChangingKey();
