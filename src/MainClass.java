@@ -27,6 +27,8 @@ public class MainClass {
 
     private static BlockCipher engine;
     private static BufferedBlockCipher cipher;
+    private static SecureRandom randomGenerator;
+
     private static int sampleNumber = 10;
     private static int experimentsNumber = 3;
 
@@ -136,7 +138,6 @@ public class MainClass {
      * @return
      */
     private static byte[] generateRandomBitSequence(int bitLength) {
-        SecureRandom randomGenerator = new SecureRandom();
         byte bytes[] = new byte[bitLength / 8];
         randomGenerator.nextBytes(bytes);
         return bytes;
@@ -149,7 +150,6 @@ public class MainClass {
      * @return
      */
     private static int generateRandomBitNumber(int maxExclusive) {
-        SecureRandom randomGenerator = new SecureRandom();
         return randomGenerator.nextInt(maxExclusive);
     }
 
@@ -170,7 +170,7 @@ public class MainClass {
         // Position of this bit in a byte
         int bitPosition = bit % 8;
 
-        return (sequence[selectedByte] >> bitPosition & 1) == 1;
+        return ((sequence[selectedByte] >> bitPosition) & 0x01) == 1;
     }
 
     public static byte[] complementBit(byte[] sequence, int bit, boolean bitValue) {
@@ -188,7 +188,7 @@ public class MainClass {
     private static int hammingDistance(byte[] sequence1, byte[] sequence2) {
         int hammingDistance = 0;
 
-        for (int i = 0; i < 8; i++) {
+        for (int i = 0; i < sequence1.length * 8; i++) {
             if (bitValue(sequence1, i) != bitValue(sequence2, i)) {
                 hammingDistance++;
             }
@@ -303,15 +303,10 @@ public class MainClass {
     public static void main(String[] args) {
         engine = new CAST6Engine();
         cipher = new PaddedBufferedBlockCipher(engine);
+        randomGenerator = new SecureRandom();
 
         //startExperiment(128);
         //startExperiment(256);
-        for (int i = 0; i < 1000; i++) {
-            int hamming = experimentChangingMessage();
-            if (hamming == 0) {
-                System.out.println("Algo falla con hamming, iteracion: " + i);
-            }
-        }
         //experimentChangingMessage();
         //experimentChangingKey();
         // TESTS
@@ -319,6 +314,7 @@ public class MainClass {
         //testGenerateRandomSequence();
         //testGenerateSimilarSequence();
         //testHamming();
+        //testHammingHard()
         //testMean();
     }
 
@@ -388,6 +384,19 @@ public class MainClass {
         byte[] newSequence = generateRandomBitSequence(8);
         printBits(newSequence);
         System.out.println(hammingDistance(sequence, newSequence));
+    }
+
+    private static void testHammingHard() {
+        for (int i = 0; i < 10000000; i++) {
+            int hamming = experimentChangingMessage();
+            if (hamming == 0) {
+                System.out.println("Algo falla con hamming, iteracion: " + i);
+            }
+
+            if (i % 1000000 == 0) {
+                System.out.println("500000 mas");
+            }
+        }
     }
 
     private static void testMean() {
